@@ -1,3 +1,16 @@
+# the main modification to BFS will be:
+# The objective of BFS is to find the shortest or least -weight paths in a graph,
+# In the first exercise, the weight of each link was simply 1, representing the 
+# standard length of a link. However, in this case, we want the algorithm to avoid
+# nodes with limited bandwidth. To achieve this, we assign less weight to paths that 
+# pass through nodes with higher bandwidth compared to those with lower bandwidth,
+# This is because if many paths use nodes with low bandwidth, it will lead to significant
+# network delays. Consequently, the weight associated with each link changes from being
+# 1 to being 1 + 1/bandwidth. This modification in weight allows the BFS algorithm to 
+# prioritize routes that use nodes with higher bandwidth capacity, thus optimizingroutes 
+# that use nodes with higher bandwidth capacity, thus optimizing 
+# the delivery of messages across the network.
+
 from Traversals import bfs_path
 import heapq
 from collections import deque
