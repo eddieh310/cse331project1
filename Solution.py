@@ -1,16 +1,3 @@
-# the main modification to BFS will be:
-# The objective of BFS is to find the shortest or least -weight paths in a graph,
-# In the first exercise, the weight of each link was simply 1, representing the 
-# standard length of a link. However, in this case, we want the algorithm to avoid
-# nodes with limited bandwidth. To achieve this, we assign less weight to paths that 
-# pass through nodes with higher bandwidth compared to those with lower bandwidth,
-# This is because if many paths use nodes with low bandwidth, it will lead to significant
-# network delays. Consequently, the weight associated with each link changes from being
-# 1 to being 1 + 1/bandwidth. This modification in weight allows the BFS algorithm to 
-# prioritize routes that use nodes with higher bandwidth capacity, thus optimizingroutes 
-# that use nodes with higher bandwidth capacity, thus optimizing 
-# the delivery of messages across the network.
-
 from Traversals import bfs_path
 import heapq
 from collections import deque
@@ -25,12 +12,120 @@ class Solution:
         self.graph = graph
         self.info = info
 
+    def bfs_path(self,graph, isp, list_clients, bandwidths):
+        """
+        The algorithm utilizes a modified BFS approach to find the shortest paths,
+        taking into account bandwidth constraints from the ISP node to each client
+        in the given network. The modified BFS employs a priority queue, incorporating
+        a weight of 1/bandwidths[node] instead of a simple weight of 1 per node.
+        This approach aims to avoid nodes with low bandwidth, prioritizing higher
+        bandwidth routes for path exploration.
+        """
+        paths = {} # Dictionary to store paths from ISP to clients
+
+        graph_size = len(graph)
+        priors = [-1]*graph_size # List to store predecessors for path reconstruction
+        search_queue = deque()
+        # Now the queue used to apply the BFS has tuples of the 
+        # form (Node Id,the min Length/Weight of the path that reaches this node)
+        search_queue.append((isp,0))
+        while search_queue:
+            # Sort the search queue based on the priority (bandwidth constraint)
+            search_queue = deque(sorted(search_queue,key=lambda x:x[1]))
+            node,weight = search_queue.popleft()
+            for neighbor in graph[node]:
+                if (priors[neighbor] == -1 and neighbor != isp):
+                    priors[neighbor] = node
+                    # The main modification to BFS is here:
+                    # The objective of BFS is to find the shortest or least-weight paths in a graph. 
+                    # In the first exercise, the weight of each link was simply 1, representing the 
+                    # standard length of a link. However, in this case, we want the algorithm to avoid
+                    #  nodes with limited bandwidth. To achieve this, we assign less weight to paths that 
+                    # pass through nodes with higher bandwidth compared to those with lower bandwidth. 
+                    # This is because if many paths use nodes with low bandwidth, it will lead to significant 
+                    # network delays. Consequently, the weight associated with each link changes from being 
+                    # 1 to being 1 + 1/bandwidth. This modification in weight allows the BFS algorithm to 
+                    # prioritize routes that use nodes with higher bandwidth capacity, thus optimizing 
+                    # the delivery of messages across the network.
+                    search_queue.append((neighbor,weight+1+1/bandwidths[node]))
+
+        # Reconstruct paths from ISP to clients using predecessors and store them in the paths dictionary
+        for client in list_clients:
+            path = []
+            current_node = client
+            while (current_node != -1):
+                path.append(current_node)
+                current_node = priors[current_node]
+            path = path[::-1]
+            paths[client] = path
+
+        return paths
+
+
     def output_paths(self):
         """
-        This method must be filled in by you. You may add other methods and subclasses as you see fit,
-        but they must remain within the Solution class.
+        This method calculates paths, bandwidths, and priorities in the network.
+        It first computes paths using the modified BFS approach that considers bandwidth constraints.
+        Then, it analyzes bandwidth usage and adjusts bandwidths if certain nodes are overloaded.
+        
+        :return: A tuple containing paths, bandwidths, and priorities.
         """
         paths, bandwidths, priorities = {}, {}, {}
-        # Note: You do not need to modify all of the above. For Problem 1, only the paths variable needs to be modified. If you do modify a variable you are not supposed to, you might notice different revenues outputted by the Driver locally since the autograder will ignore the variables not relevant for the problem.
-        # WARNING: DO NOT MODIFY THE LINE BELOW, OR BAD THINGS WILL HAPPEN
+
+        # Retrieve bandwidth information from the provided network information.
+        bandwidths = self.info['bandwidths']
+
+        # Compute paths using the modified BFS approach that considers bandwidth constraints.
+        paths = self.bfs_path(self.graph, self.isp, self.info["list_clients"],self.info['bandwidths'])
+
+        # Initialize a dictionary to track bandwidth usage for each node.
+        bandwidth_use = {node:{} for node in self.graph.keys()}
+
+        # Analyze bandwidth usage along the computed paths.
+        for client,path in paths.items():
+            i = 0
+            for node in path[1:-1]:
+                if i in bandwidth_use[node].keys():
+                    bandwidth_use[node][i] += 1
+                else:
+                    bandwidth_use[node][i] = 1
+                i += 1
+
+        # Initialize a dictionary to track maximum bandwidth usage per node.
+        bandwidth_use_max = {}
+
+        # Calculate the maximum bandwidth usage for each node at the same time.
+        for node,values in bandwidth_use.items():
+            if values.values():
+                #print(max(values.values()), " - ",  bandwidths[node])
+                bandwidth_use_max[node] = max(0,max(values.values()) - bandwidths[node])
+
+        # Adjust bandwidths for nodes that are overloaded.
+        for node,value in bandwidth_use_max.items():
+            #This loop iterates through each node in the network for which bandwidth 
+            # constraints have been exceeded (i.e., bandwidth_use_max is greater than zero for that node).
+
+            if bandwidth_use_max[node] > len(self.info["list_clients"]) * 0.03:
+                # Here, we check if the maximum bandwidth usage at the node (as stored in 
+                # bandwidth_use_max) is greater than 3% of the total number of clients in the network. 
+                # In other words, we're identifying nodes where the demand for bandwidth significantly
+                # exceeds the network's capacity.
+
+                bandwidths[node] += int(bandwidth_use_max[node]*0.3)
+                # When the above condition is met, we take action to alleviate the overload. We increase
+                #  the available bandwidth at the node by adding an amount equal to 30% of the maximum 
+                # bandwidth usage observed at that node. By doing this, we're redistributing the network'
+                # s capacity more efficiently and reducing congestion in nodes where it's needed most.
+        
+        # This part identifies nodes that are overloaded with high bandwidth demands 
+        # (more than 3% of the total clients) and increases their available bandwidth by 30%. 
+        # This adjustment helps optimize network performance by ensuring that heavily used nodes 
+        # have the necessary bandwidth capacity to handle the traffic.
+
+        
+        #print(sorted(bandwidth_use_max.values()))
+        # paths = bfs_path(self.graph, self.isp, self.info["list_clients"])
+        #simulator = Simulator()
+        #simulator.run(self.graph,self.isp,self.info['list_clients'],paths,bandwidths,priorities,False)
+        #print(simulator.get_delays(self.info['list_clients']))
         return (paths, bandwidths, priorities)
